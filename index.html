@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>粒子文字交响曲 — Particle Text Symphony</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #14142b;
+      --text: #e0e0f0;
+      --accent: #7c5ce7;
+      --accent2: #00d4aa;
+      --accent3: #ff6b9d;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 1;
+    }
+
+    .ui-overlay {
+      position: fixed;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .ui-overlay > * { pointer-events: auto; }
+
+    .top-bar {
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: var(--surface);
+      border-radius: 50px;
+      padding: 6px 6px 6px 20px;
+      border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .input-row input {
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 16px;
+      outline: none;
+      width: 220px;
+      font-family: inherit;
+    }
+
+    .input-row input::placeholder {
+      color: rgba(255,255,255,0.3);
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 50px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.25s ease;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(124,92,231,0.4);
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 28px rgba(124,92,231,0.6);
+    }
+    .btn-primary:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 12px rgba(124,92,231,0.3);
+    }
+
+    .bottom-bar {
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      background: var(--surface);
+      border-radius: 50px;
+      padding: 6px;
+      border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .mode-btn {
+      padding: 8px 18px;
+      border-radius: 50px;
+      border: none;
+      background: transparent;
+      color: rgba(255,255,255,0.5);
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 500;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .mode-btn:hover { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.05); }
+
+    .mode-btn.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 2px 12px rgba(124,92,231,0.3);
+    }
+
+    .hint {
+      position: fixed;
+      bottom: 110px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      font-size: 13px;
+      color: rgba(255,255,255,0.35);
+      letter-spacing: 0.5px;
+      transition: opacity 0.5s;
+    }
+
+    /* 粒子统计面板 */
+    .stats-panel {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 10;
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 16px 20px;
+      border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 120px;
+    }
+
+    .stats-panel .stat {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+    }
+
+    .stats-panel .stat-label {
+      color: rgba(255,255,255,0.4);
+    }
+
+    .stats-panel .stat-value {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent2);
+    }
+
+    .stats-panel .fps-good { color: var(--accent2) !important; }
+    .stats-panel .fps-warn { color: #ffaa00 !important; }
+    .stats-panel .fps-bad  { color: #ff4444 !important; }
+
+    @media (max-width: 768px) {
+      .top-bar { top: 12px; gap: 6px; }
+      .input-row { padding: 4px 4px 4px 14px; }
+      .input-row input { width: 140px; font-size: 14px; }
+      .btn { padding: 8px 16px; font-size: 12px; }
+      .bottom-bar { bottom: 16px; gap: 3px; padding: 4px; }
+      .mode-btn { padding: 6px 12px; font-size: 11px; }
+      .hint { bottom: 90px; font-size: 11px; }
+      .stats-panel { top: auto; bottom: 100px; right: 10px; padding: 10px 14px; gap: 4px; }
+      .stats-panel .stat { font-size: 11px; gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <div class="ui-overlay top-bar">
+    <div class="input-row">
+      <input id="text-input" type="text" placeholder="输入文字，回车确认…" maxlength="20" autofocus>
+      <button class="btn btn-primary" id="go-btn">✨ 化形</button>
+    </div>
+  </div>
+
+  <div class="hint" id="hint-text">
+    🖱 鼠标靠近 = 粒子飞舞 · 点击 = 激荡 · 拖拽 = 涡流
+  </div>
+
+  <div class="ui-overlay bottom-bar" id="mode-bar">
+    <button class="mode-btn active" data-mode="attract">🧲 吸引</button>
+    <button class="mode-btn" data-mode="repel">💨 排斥</button>
+    <button class="mode-btn" data-mode="wave">🌊 波浪</button>
+    <button class="mode-btn" data-mode="vortex">🌀 涡旋</button>
+    <button class="mode-btn" data-mode="scatter">✨ 散落</button>
+    <button class="mode-btn" data-mode="return">🏠 归位</button>
+  </div>
+
+  <div class="stats-panel" id="stats">
+    <div class="stat"><span class="stat-label">粒子</span><span class="stat-value" id="stat-particles">0</span></div>
+    <div class="stat"><span class="stat-label">FPS</span><span class="stat-value fps-good" id="stat-fps">0</span></div>
+  </div>
+
+  <script>
+    // ================ 粒子文字交响曲 ================
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let W, H;
+
+    // --- 状态 ---
+    const particles = [];
+    const targets = [];  // 每个粒子的"归位"目标坐标
+    let mode = 'attract';      // attract | repel | wave | vortex | scatter | return
+    let mouseX = null;
+    let mouseY = null;
+    let mouseDown = false;
+    let mouseActive = false;
+
+    // 性能
+    let frameCount = 0, fpsTime = 0, currentFPS = 0;
+
+    // --- 画布尺寸 ---
+    function resize() {
+      W = canvas.width  = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+      // 重新计算归位目标
+      recalcTargets();
+    }
+    window.addEventListener('resize', resize);
+
+    // --- 颜色调色板 ---
+    const PALETTES = [
+      ['#ff6b9d','#c44dff','#7c5ce7','#4ecdc4','#00d4aa'],
+      ['#ff4757','#ff6348','#ffa502','#2ed573','#1e90ff'],
+      ['#eccc68','#ff7f50','#ff6b81','#70a1ff','#5352ed'],
+      ['#fd79a8','#e84393','#6c5ce7','#00b894','#0984e3'],
+    ];
+    let currentPalette = PALETTES[0];
+
+    // --- 文字 → 粒子 ---
+    function textToParticles(text) {
+      // 先清除旧的
+      particles.length = 0;
+      targets.length = 0;
+
+      if (!text.trim()) return;
+
+      const offCanvas = document.createElement('canvas');
+      const offCtx = offCanvas.getContext('2d');
+
+      // 计算合适字号
+      const fontSize = Math.min(
+        Math.floor(W / text.length * 1.5),
+        H * 0.35,
+        200
+      );
+      const finalSize = Math.max(fontSize, 40);
+
+      offCanvas.width = W;
+      offCanvas.height = H;
+
+      offCtx.fillStyle = '#ffffff';
+      offCtx.font = `bold ${finalSize}px "PingFang SC","Microsoft YaHei","Segoe UI",sans-serif`;
+      offCtx.textAlign = 'center';
+      offCtx.textBaseline = 'middle';
+      offCtx.fillText(text, W / 2, H / 2);
+
+      const imageData = offCtx.getImageData(0, 0, W, H);
+      const data = imageData.data;
+
+      const step = 3; // 采样步长（step 越小粒子越多）
+      const sampledPoints = [];
+
+      for (let y = 0; y < H; y += step) {
+        for (let x = 0; x < W; x += step) {
+          const idx = (y * W + x) * 4;
+          const alpha = data[idx + 3];
+          if (alpha > 100) {
+            sampledPoints.push({ x, y });
+          }
+        }
+      }
+
+      // 如果粒子太多，均匀采样
+      const MAX_PARTICLES = 4000;
+      let finalPoints = sampledPoints;
+      if (sampledPoints.length > MAX_PARTICLES) {
+        finalPoints = [];
+        const skip = Math.ceil(sampledPoints.length / MAX_PARTICLES);
+        for (let i = 0; i < sampledPoints.length; i += skip) {
+          finalPoints.push(sampledPoints[i]);
+          if (finalPoints.length >= MAX_PARTICLES) break;
+        }
+      }
+
+      // 随机选择一个调色板（每次换文字换颜色）
+      currentPalette = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+
+      // 创建粒子
+      finalPoints.forEach((pt, i) => {
+        const color = currentPalette[Math.floor(Math.random() * currentPalette.length)];
+        // 入场：从随机位置飞入
+        const startAngle = Math.random() * Math.PI * 2;
+        const startDist = Math.max(W, H) * (0.3 + Math.random() * 0.7);
+        const p = {
+          x: W / 2 + Math.cos(startAngle) * startDist,
+          y: H / 2 + Math.sin(startAngle) * startDist,
+          tx: pt.x,
+          ty: pt.y,
+          color,
+          size: 1.5 + Math.random() * 3,
+          vx: 0, vy: 0,
+          life: Math.random() * 100,
+        };
+        particles.push(p);
+        targets.push({ x: pt.x, y: pt.y, idx: i });
+      });
+
+      updateStats();
+    }
+
+    function recalcTargets() {
+      // 重新生成文字粒子（保留当前文字）
+      const input = document.getElementById('text-input');
+      const text = input.value.trim();
+      if (text) textToParticles(text);
+    }
+
+    // --- 性能统计 ---
+    function updateStats() {
+      document.getElementById('stat-particles').textContent = particles.length;
+    }
+    function updateFPS(dt) {
+      fpsTime += dt;
+      frameCount++;
+      if (fpsTime >= 500) {
+        currentFPS = Math.round(frameCount / fpsTime * 1000);
+        document.getElementById('stat-fps').textContent = currentFPS;
+        const el = document.getElementById('stat-fps');
+        el.className = 'stat-value';
+        if (currentFPS < 30) el.classList.add('fps-bad');
+        else if (currentFPS < 55) el.classList.add('fps-warn');
+        else el.classList.add('fps-good');
+        frameCount = 0;
+        fpsTime = 0;
+      }
+    }
+
+    // --- 物理更新 ---
+    function update(dt) {
+      const speed = Math.min(dt / 16.67, 3); // 归一化，防止大帧差
+      const haveMouse = mouseActive && mouseX !== null && mouseY !== null;
+
+      particles.forEach((p, i) => {
+        let forceX = 0, forceY = 0;
+
+        if (haveMouse) {
+          const dx = mouseX - p.x;
+          const dy = mouseY - p.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 0.1;
+          const nx = dx / dist;
+          const ny = dy / dist;
+
+          switch (mode) {
+            case 'attract':
+              // 鼠标附近吸引
+              if (dist < 250) {
+                const strength = mouseDown ? 0.35 : 0.12;
+                forceX += nx * strength * (1 - dist / 250);
+                forceY += ny * strength * (1 - dist / 250);
+              }
+              break;
+            case 'repel':
+              // 排斥
+              if (dist < 200) {
+                const strength = mouseDown ? 0.55 : 0.22;
+                forceX -= nx * strength * (1 - dist / 200);
+                forceY -= ny * strength * (1 - dist / 200);
+              }
+              break;
+            case 'wave':
+              // 波浪：按 X 方向正弦波
+              if (dist < 280) {
+                const waveStrength = mouseDown ? 2.5 : 1.0;
+                forceY += Math.sin(p.x * 0.02 + performance.now() * 0.004) * waveStrength * speed;
+              }
+              break;
+            case 'vortex':
+              // 涡旋：绕鼠标旋转
+              if (dist < 260) {
+                const angle = Math.atan2(dy, dx);
+                const vortexStrength = mouseDown ? 0.6 : 0.2;
+                forceX += Math.sin(angle + Math.PI / 2) * vortexStrength;
+                forceY += Math.cos(angle + Math.PI / 2) * vortexStrength * -1;
+              }
+              break;
+            case 'scatter':
+              // 散落：轻微推动
+              if (dist < 300) {
+                forceX += (Math.random() - 0.5) * (mouseDown ? 0.8 : 0.3);
+                forceY += (Math.random() - 0.5) * (mouseDown ? 0.8 : 0.3);
+              }
+              break;
+            case 'return':
+              // 归位：不受鼠标影响，靠下面弹簧力归位
+              break;
+          }
+        }
+
+        // 弹簧力 → 归位目标
+        const t = targets[i];
+        if (t) {
+          const dxT = t.x - p.x;
+          const dyT = t.y - p.y;
+          const distT = Math.sqrt(dxT * dxT + dyT * dyT) || 0.1;
+          const springK = mode === 'return' ? 0.06 : 0.015;
+          forceX += dxT * springK * speed;
+          forceY += dyT * springK * speed;
+        }
+
+        // 阻尼
+        const damping = 0.94;
+        p.vx = (p.vx + forceX * speed) * damping;
+        p.vy = (p.vy + forceY * speed) * damping;
+
+        p.x += p.vx * speed;
+        p.y += p.vy * speed;
+
+        // life 用于颜色微变化
+        p.life = (p.life + 0.03 * speed) % 100;
+      });
+    }
+
+    // --- 渲染 ---
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+
+      // 背景微光
+      ctx.fillStyle = 'rgba(10,10,25,0.3)';
+      ctx.fillRect(0, 0, W, H);
+
+      // 绘制粒子之间的连线（近距离才连，提升质感）
+      const MAX_DIST = 48;
+      const MIN_DIST = 10;
+
+      particles.forEach((p, i) => {
+        // 画粒子
+        const alpha = 0.6 + 0.4 * Math.sin(p.life * 0.1);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = p.color.replace(')', `,${alpha})`).replace('rgb', 'rgba');
+        // 如果是 hex，转换
+        if (p.color.startsWith('#')) {
+          const r = parseInt(p.color.slice(1,3), 16);
+          const g = parseInt(p.color.slice(3,5), 16);
+          const b = parseInt(p.color.slice(5,7), 16);
+          ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+        }
+        ctx.fill();
+
+        // 光晕
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = ctx.fillStyle.replace(/[\d.]+\)$/, `${alpha * 0.25})`);
+        ctx.fill();
+
+        // 连线（间隔采样减少计算量）
+        if (i % 3 === 0) {
+          for (let j = i + 3; j < Math.min(i + 60, particles.length); j++) {
+            const dx = particles[j].x - p.x;
+            const dy = particles[j].y - p.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < MAX_DIST && dist > MIN_DIST && p.color === particles[j].color) {
+              ctx.beginPath();
+              ctx.moveTo(p.x, p.y);
+              ctx.lineTo(particles[j].x, particles[j].y);
+              const lineAlpha = (1 - dist / MAX_DIST) * 0.12;
+              ctx.strokeStyle = `rgba(255,255,255,${lineAlpha})`;
+              ctx.lineWidth = 0.4;
+              ctx.stroke();
+            }
+          }
+        }
+      });
+    }
+
+    // --- 游戏循环 ---
+    let lastTime = performance.now();
+    function loop(time) {
+      const dt = time - lastTime;
+      lastTime = time;
+
+      update(dt);
+      draw();
+      updateFPS(dt);
+
+      requestAnimationFrame(loop);
+    }
+
+    // --- 事件 ---
+    canvas.addEventListener('mousemove', (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      if (!mouseActive) {
+        mouseActive = true;
+        document.getElementById('hint-text').style.opacity = '0.4';
+      }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+      mouseActive = false;
+      mouseX = null;
+      mouseY = null;
+      document.getElementById('hint-text').style.opacity = '1';
+    });
+
+    canvas.addEventListener('mousedown', () => { mouseDown = true; });
+    canvas.addEventListener('mouseup', () => { mouseDown = false; });
+
+    // 触摸支持
+    canvas.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      const t = e.touches[0];
+      mouseX = t.clientX;
+      mouseY = t.clientY;
+      mouseActive = true;
+    }, { passive: false });
+
+    canvas.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      mouseDown = true;
+      const t = e.touches[0];
+      mouseX = t.clientX;
+      mouseY = t.clientY;
+      mouseActive = true;
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', () => {
+      mouseDown = false;
+    });
+
+    // --- UI 交互 ---
+    const input = document.getElementById('text-input');
+    const goBtn = document.getElementById('go-btn');
+
+    function spawnParticles() {
+      const text = input.value.trim();
+      if (!text) return;
+      textToParticles(text);
+    }
+
+    goBtn.addEventListener('click', spawnParticles);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') spawnParticles();
+    });
+
+    // 模式切换
+    document.getElementById('mode-bar').addEventListener('click', (e) => {
+      if (e.target.classList.contains('mode-btn')) {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        mode = e.target.dataset.mode;
+
+        const hintMap = {
+          attract: '🧲 粒子被鼠标吸引靠近',
+          repel: '💨 粒子被鼠标推开远离',
+          wave: '🌊 粒子随正弦波浪上下起伏',
+          vortex: '🌀 粒子绕鼠标形成漩涡',
+          scatter: '✨ 粒子随机飘散飞舞',
+          return: '🏠 粒子缓慢回归原始文字位置',
+        };
+        const hintEl = document.getElementById('hint-text');
+        hintEl.textContent = hintMap[mode] || '';
+        setTimeout(() => { hintEl.style.opacity = '1'; }, 100);
+      }
+    });
+
+    // --- 启动 ---
+    resize();
+
+    // 默认展示文字
+    input.value = 'Symphony';
+    textToParticles('Symphony');
+
+    requestAnimationFrame(loop);
+
+    // 键盘快捷键
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      const keyMap = {
+        '1': 'attract', '2': 'repel', '3': 'wave',
+        '4': 'vortex', '5': 'scatter', '6': 'return'
+      };
+      if (keyMap[e.key]) {
+        mode = keyMap[e.key];
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
+      }
+    });
+  </script>
+</body>
+</html>
